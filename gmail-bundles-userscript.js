@@ -107,7 +107,7 @@ Plan Notes:
 	};
 
 	const isBundleInDom = (bundleName) => {
-		return !!document.querySelector(`.${getBundleClass(bundleName)}`);
+		return !!document.querySelector(`[data-bundleName="${bundleName}"]`);
 	};
 
 	// This method will be used to set the bundle dom code into JS once per script run.
@@ -155,14 +155,10 @@ Plan Notes:
 			.replace('/tr>', '/div>') // Ensures bundle DOM element doesn't count as email to GMail's JS
 			.replace(/td/g, 'div') // Ensures bundle DOM element doesn't count as email to GMail's JS
 			.replace('<div class="oZ-x3 xY" style="', '<div class="oZ-x3 xY" style="width: 72px;') // Ensures we correctly left-align
-			.replace(displayedEmailClass, `${displayedEmailClass} ${BUNDLE_CLASS_PREFIX} {CLASS}`)
+			// TODO: We probably don't need BUNDLE_CLASS_PREFIX anymore, can just use `data-bundlename`
+			.replace(displayedEmailClass, `${displayedEmailClass} ${BUNDLE_CLASS_PREFIX}`)
 			.replace(randomBackgroundColor, '{BUNDLE-BG-COLOR}')
 			.replace(randomTextColor, '{BUNDLE-TEXT-COLOR}');
-	};
-
-	// TODO: Do we still need this if we have data-bundleName?
-	const getBundleClass = (bundleName) => {
-		return `${BUNDLE_CLASS_PREFIX}-${bundleName}`;
 	};
 
 	// Toggle on/off bundles' emails visibility
@@ -198,27 +194,30 @@ Plan Notes:
 		});
 	};
 
+	const getBundleSelector = (bundleName) => {
+		return `[data-bundlename="${bundleName}"]`;
+	};
+
 	// This method creates a single bundle DOM element adjacent right above the specified $email
 	// Set isPlacedAfter to `true` to instead insert bundle DOM below $email
 	//  Used for moving bundle DOM around when opening other bundles
 	const insertBundleDom = ($email, bundleName, isPlacedAfter) => {
 		console.log('inserting bundle', bundleName);
-		const bundleClass = getBundleClass(bundleName);
+		const bundleSelector = getBundleSelector(bundleName);
 		const $latestBundledEmail = state.bundles[bundleName][0];
-		if (document.querySelector(`.${bundleClass}`)) {
+		if (document.querySelector(bundleSelector)) {
 			return;
 		}
 
 		const $emailLabelWrapper = getEmailLabelWrapperOfBundle($latestBundledEmail, bundleName);
 
 		$email.insertAdjacentHTML(isPlacedAfter ? 'afterend' : 'beforebegin', state.bundleTemplateHTML
-			.replace('{CLASS}', bundleClass)
 			.replace('{BUNDLE_NAME}', bundleName)
 			.replace('{BUNDLE-BG-COLOR}', $emailLabelWrapper.style['background-color'])
 			.replace('{BUNDLE-TEXT-COLOR}', $emailLabelWrapper.querySelector(EMAIL_LABEL_CLASS).style['color'])
 		);
 
-		document.querySelector(`.${bundleClass}`).addEventListener('click', (event) => {
+		document.querySelector(bundleSelector).addEventListener('click', (event) => {
 			onBundleClick(event, bundleName);
 		});
 
@@ -229,8 +228,7 @@ Plan Notes:
 	// TODO: Maybe update label colors?
 	const updateBundleDom = (bundleName) => {
 		const bundle = state.bundles[bundleName];
-		const bundleClass = getBundleClass(bundleName);
-		const $bundle = document.querySelector(`.${bundleClass}`);
+		const $bundle = document.querySelector(getBundleSelector(bundleName));
 		if (!$bundle) {
 			console.warn('Trying to update bundle that was not found in DOM: ', bundleName);
 			return;
@@ -321,7 +319,7 @@ Plan Notes:
 	const moveBundleDoms = ($email, bundleNames, isPlacedAfter) => {
 		console.log('moving bundles:', bundleNames);
 		bundleNames.reverse().forEach((bundleName) => {
-			const $bundle = document.querySelector(`[data-bundlename="${bundleName}"]`);
+			const $bundle = document.querySelector(getBundleSelector(bundleName));
 			// We don't want to move the bundle if it's already appropriately in position.
 			//  If we were to do that, we'd cause a redundant loop of the DOM being updated thanks to our mutatationobserver
 			// Get a list of all emails before/after $email
@@ -451,14 +449,13 @@ Plan Notes:
 
 		bundleNames.forEach((bundleName) => {
 			const bundle = state.bundles[bundleName];
-			const bundleClass = getBundleClass(bundleName);
 			const $latestEmail = bundle[0];
 
 			// Initialize bundle visibility if necessary
 			state.bundlesVisibility[bundleName] = state.bundlesVisibility[bundleName] || false;
 
 			// Initialize or update the bundle DOM
-			if (!document.querySelector(`.${bundleClass}`)) {
+			if (!document.querySelector(getBundleSelector(bundleName))) {
 				insertBundleDom($latestEmail, bundleName);
 			} else {
 				updateBundleDom(bundleName);

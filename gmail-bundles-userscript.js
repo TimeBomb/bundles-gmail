@@ -43,6 +43,7 @@ Plan Notes:
 	const EMAIL_SUBJECT_CLASS = '.bog'; // Class containing email subject
 	const EMAIL_SENT_DATE_CLASS = '.xW span span'; // Class containing email sent date to the right of email attachment icon
 	const REMOVED_CLASSES = {
+		EMAIL_THREAD_COUNT: '.bx0', // The number of messages in the email thread
 		IMPORTANT_TAG_CLASS: '.pG', // The important arrow to the left of the email sender
 		HIDDEN_SENDER_CLASS: '.afn', // Class containing hidden text about the email sender
 		LABEL_CLASS: '.yi', // Class containing labels to the left of email subject
@@ -57,7 +58,8 @@ Plan Notes:
 	const BUNDLE_CLASS_PREFIX = '_js-bundle'; // Used as prefix to individual bundle elements
 	const HIDDEN_EMAIL_CLASS = '_js-hidden-email'; // Used to specify that an individual email has been hidden from the DOM
 	const IS_BUNDLED_CLASS = '_js-is-bundled'; // Class denoting whether an individual email is part of a bundle or not
-	const MAX_SENDERS_BUNDLE_DESC = 3;
+	const EMAIL_SENDERS_SEPARATOR = '&nbsp;&nbsp;|&nbsp;&nbsp;'; // Used as separator of email senders in the bundle description
+	const MAX_SENDERS_BUNDLE_DESC = 3; // Max email senders to display as bundle description
 	const BUNDLE_UPDATE_DELAY = 100; // The minimum amount of time, in milliseconds, to potentially runBundlizer if there's a DOM mutation; this is the debounce delay
 
 	const state = {
@@ -120,10 +122,10 @@ Plan Notes:
 
 		// First: Remove all unused classes
 		Object.values(REMOVED_CLASSES).forEach((REMOVED_CLASS) => {
-			const $removedElement = $bundleTemplate.querySelector(REMOVED_CLASS);
-			if ($removedElement) {
+			const $removedElements = Array.from($bundleTemplate.querySelectorAll(REMOVED_CLASS));
+			$removedElements.forEach(($removedElement) => {
 				$removedElement.remove();
-			}
+			});
 		});
 
 		// We can't directly set `.style` values to invalid values like template variables, thus we need random values that'll be replaced.
@@ -251,8 +253,8 @@ Plan Notes:
 		if ($bundleName.innerHTML !== renderedBundleName) {
 			$bundleName.innerHTML = renderedBundleName;
 		}
-		if ($emailSenders.innerText !== recentSenders.join(', ')) {
-			$emailSenders.innerText = recentSenders.join(', ');
+		if ($emailSenders.innerHTML !== recentSenders.join(EMAIL_SENDERS_SEPARATOR)) {
+			$emailSenders.innerHTML = recentSenders.join(EMAIL_SENDERS_SEPARATOR);
 		}
 		if ($lastReceivedEmailDate.innerText !== emailDate) {
 			$lastReceivedEmailDate.innerText = emailDate;

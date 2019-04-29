@@ -38,7 +38,7 @@ Plan Notes:
 
 	// DOM class constants used by bundle template HTML
 	const EMAIL_UNREAD_CLASS = 'zE'; // .zE is applied to the email class .zA only if it's an unread email
-	const EMAIL_SENDER_CLASS = '.yW .yP'; // Class containing sender name and attributes related to sender. `.yP` is the sender class, `.yW` is visible text only.
+	const EMAIL_SENDER_CLASS = '.yW'; // Class containing sender name and attributes related to sender. `.yP` is the sender class, `.yW` is visible text only.
 	const EMAIL_SENDER_WRAPPER_CLASS = '.bA4'; // Class wrapping sender class, used to style bundle name, and also to get recent senders
 	const EMAIL_SUBJECT_CLASS = '.bog'; // Class containing email subject
 	const EMAIL_SENT_DATE_CLASS = '.xW span span'; // Class containing email sent date to the right of email attachment icon
@@ -120,6 +120,7 @@ Plan Notes:
 		const $emails = document.querySelectorAll(`${VISIBLE_EMAIL_TABLE_CLASS} ${EMAIL_CLASS}`);
 		const $email = $emails[$emails.length - 1]; // Grab last email to ensure it doesn't have any type of top-of-list CSS
 		const $bundleTemplate = $email.cloneNode(true);
+        console.log('initting bundle tpl with', $bundleTemplate.outerHTML);
 
 		// First: Remove all unused classes
 		Object.values(REMOVED_CLASSES).forEach((REMOVED_CLASS) => {
@@ -139,8 +140,13 @@ Plan Notes:
 		cleanAttributes($bundleTemplate);
 
 		// Third: Replace specific fields with template vars
-		$bundleTemplate.querySelector(EMAIL_SENDER_CLASS).setAttribute('data-bundle', '');
+        console.log('trying to init tpl', $bundleTemplate);
+        // Sometimes the inner span is yP if subject has name, sometime it is zF if it's `me`/nameless. Also, there are multiple yP/zF per sender. So we override that.
+        // TODO: Maybe make override below less explicit? Make it look nicer somehow?
+		$bundleTemplate.querySelector(EMAIL_SENDER_CLASS).innerHTML = '<span class="bA4"><span class="yP" data-bundle></span></span>';
+        console.log('cleaning subject...');
 		$bundleTemplate.querySelector(EMAIL_SUBJECT_CLASS).setAttribute('data-subject', '');
+                console.log('cleaning date...');
 		$bundleTemplate.querySelector(EMAIL_SENT_DATE_CLASS).setAttribute('data-date', '');
 		// Some custom styles for our bundle name
 		$bundleTemplate.querySelector(EMAIL_SENDER_WRAPPER_CLASS).style['background-color'] = randomBackgroundColor;
@@ -248,6 +254,7 @@ Plan Notes:
 		const $bundleName = $bundle.querySelector('[data-bundle]');
 		const $emailSenders = $bundle.querySelector('[data-subject]')
 		const $lastReceivedEmailDate = $bundle.querySelector('[data-date]');
+        console.log('$bundle name while updating', $bundleName);
 		if ($bundleName.innerHTML.trim() !== renderedBundleName.trim()) {
 			$bundleName.innerHTML = renderedBundleName;
 		}
@@ -480,6 +487,8 @@ Plan Notes:
 		}
 	};
 
+    // TODO: This updates unnecessarily too often because lots of things unrelated to email change based off ALL_EMAIL_TABLE_CLASS. Clean it up!
+    //  Maybe have separate mutation observer checking for updates to ALL_EMAIL_TABLE_CLASS, then that mutation observer starts an observer only if the observed element is an email table?
     const init = () => {
         const loadingNode = document.querySelector(LOADING_CLASS);
         // Note: TamperMonkey appears to call `init` multiple times, sometimes when the body only contains script tags and no loading tag. Odd.

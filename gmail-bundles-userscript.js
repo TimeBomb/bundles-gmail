@@ -37,7 +37,7 @@ Plan Notes:
 	const EMAIL_LABEL_CLASS = '.av'; // Used to label email text color
 
 	// DOM class constants used by bundle template HTML
-	const EMAIL_UNREAD_CLASS = 'zE' // .zE is applied to the email class .zA only if it's an unread email
+	const EMAIL_UNREAD_CLASS = 'zE'; // .zE is applied to the email class .zA only if it's an unread email
 	const EMAIL_SENDER_CLASS = '.yW .yP'; // Class containing sender name and attributes related to sender. `.yP` is the sender class, `.yW` is visible text only.
 	const EMAIL_SENDER_WRAPPER_CLASS = '.bA4'; // Class wrapping sender class, used to style bundle name, and also to get recent senders
 	const EMAIL_SUBJECT_CLASS = '.bog'; // Class containing email subject
@@ -59,6 +59,7 @@ Plan Notes:
 	const HIDDEN_EMAIL_CLASS = '_js-hidden-email'; // Used to specify that an individual email has been hidden from the DOM
 	const IS_BUNDLED_CLASS = '_js-is-bundled'; // Class denoting whether an individual email is part of a bundle or not
 	const EMAIL_SENDERS_SEPARATOR = '&nbsp;&nbsp;|&nbsp;&nbsp;'; // Used as separator of email senders in the bundle description
+	const UNICODE_NBSP = '\u00A0';
 	const MAX_SENDERS_BUNDLE_DESC = 3; // Max email senders to display as bundle description
 	const BUNDLE_UPDATE_DELAY = 100; // The minimum amount of time, in milliseconds, to potentially runBundlizer if there's a DOM mutation; this is the debounce delay
 
@@ -166,13 +167,6 @@ Plan Notes:
 
 	// Toggle on/off bundles' emails visibility
 	const onBundleClick = (event, bundleName) => {
-		// Turn off currently visible bundle first, to reset bundle doms position appropriately among other things
-		const visibleBundleName = getVisibleBundleName();
-		if (state.bundlesVisibility[bundleName] === false && visibleBundleName) {
-			state.bundlesVisibility[visibleBundleName] = false;
-			turnOffBundleVisibility(visibleBundleName);
-		}
-
 		const turnOffBundleVisibility = (_bundleName) => {
 			hideEmails(state.bundles[_bundleName]);
 			showUnbundledEmails();
@@ -180,6 +174,13 @@ Plan Notes:
 				.splice(state.bundlesOrder.indexOf(_bundleName) + 1, state.bundlesOrder.length);
 			resetBundleDomsPosition(bundlesResetPosition);
 		};
+
+		// Turn off currently visible bundle first, to reset bundle doms position appropriately among other things
+		const visibleBundleName = getVisibleBundleName();
+		if (state.bundlesVisibility[bundleName] === false && visibleBundleName) {
+			state.bundlesVisibility[visibleBundleName] = false;
+			turnOffBundleVisibility(visibleBundleName);
+		}
 
 		state.bundlesVisibility[bundleName] = !state.bundlesVisibility[bundleName];
 		if (state.bundlesVisibility[bundleName]) {
@@ -226,9 +227,7 @@ Plan Notes:
 
 	// Updates bundle DOM unread status, email count, email senders
 	// TODO: Maybe update label colors?
-	// TODO: Move bundle around if bundle order has changed, leverage state.bundlesOrder and moveBundleDoms
 	const updateBundleDom = (bundleName) => {
-		console.log('updating bundle maybe', bundleName);
 		const bundle = state.bundles[bundleName];
 		const bundleClass = getBundleClass(bundleName);
 		const $bundle = document.querySelector(`.${bundleClass}`);
@@ -237,6 +236,7 @@ Plan Notes:
 			return;
 		}
 
+		console.log('updating bundle maybe', bundleName);
 		const $latestEmail = bundle[0];
 		const isBundleOpen = state.bundlesVisibility[bundleName];
 		const isUnread = $latestEmail.classList.contains(EMAIL_UNREAD_CLASS) || state.bundlesUnread[bundleName];
@@ -250,13 +250,15 @@ Plan Notes:
 		const $bundleName = $bundle.querySelector('[data-bundle]');
 		const $emailSenders = $bundle.querySelector('[data-subject]')
 		const $lastReceivedEmailDate = $bundle.querySelector('[data-date]');
-		if ($bundleName.innerHTML !== renderedBundleName) {
+		if ($bundleName.innerHTML.trim() !== renderedBundleName.trim()) {
 			$bundleName.innerHTML = renderedBundleName;
 		}
-		if ($emailSenders.innerHTML !== recentSenders.join(EMAIL_SENDERS_SEPARATOR)) {
+		// Compare innerText so that we don't have to deal with HTML entities, e.g. &amp; vs &
+		// Replace &nbsp; with UNICODE_NBSP to appropriately match & compare the value of innerText
+		if ($emailSenders.innerText.trim() !== recentSenders.join(EMAIL_SENDERS_SEPARATOR.replace(/&nbsp;/g, UNICODE_NBSP)).trim()) {
 			$emailSenders.innerHTML = recentSenders.join(EMAIL_SENDERS_SEPARATOR);
 		}
-		if ($lastReceivedEmailDate.innerText !== emailDate) {
+		if ($lastReceivedEmailDate.innerText.trim() !== emailDate.trim()) {
 			$lastReceivedEmailDate.innerText = emailDate;
 		}
 	};
@@ -266,6 +268,7 @@ Plan Notes:
 	// TODO: Would be nicer if this was less stateful...
 	// Sort all email DOM nodes into an object of arrays, each key representing a label
 	const setBundleStateToEmails = ($emails) => {
+		console.log('setting bundle state to email, incl updating bundle order');
 		const bundles = {};
 		const bundlesUnread = {};
 		const bundlesOrder = []; // `querySelectorAll` is ordered from top-most element to bottom-most, which translates to most-recent to least-recent email
@@ -328,6 +331,10 @@ Plan Notes:
 				: $allEmails.splice(0, $allEmails.indexOf($email));
 
 			// Only update the position of our bundle if our bundle is out of position
+			// TODO: This conditional check is NOT good enough
+			//  If the bundle order should be [Shipping, Kickstarter], but the current order is [Kickstarter, Shipping],
+			//   then this check will NOT trigger even though it should, because $positionedEmails includes both of the bundles.
+			//  Maybe we should iterate over positionedEmails instead of the bundles?
 			if (!$positionedEmails.includes($bundle)) {
 				$bundle.remove();
 				insertBundleDom($email, bundleName, isPlacedAfter);
@@ -335,12 +342,22 @@ Plan Notes:
 		});
 	};
 
-	// Resets a set of bundle DOMs back to their appropriate position, used when bundles are closed
-	const resetBundleDomsPosition = (bundleNames) => {
-		bundleNames.forEach((bundleName) => {
-			const $latestEmail = state.bundles[bundleName][0];
-			moveBundleDoms($latestEmail, [bundleName]);
-		});
+	// Resets all bundle DOMs back to their appropriate position, depending on whether a bundle is opened or they're all closed
+	const resetBundleDomsPosition = () => {
+		const bundleNames = Object.keys(state.bundles);
+		const visibleBundleName = getVisibleBundleName();
+		if (visibleBundleName) { // If a bundle is open, order necessary bundle DOMs after open bundle
+			const visibleBundle = state.bundles[visibleBundleName];
+			const bundlesAfterVisibleBundle = [...state.bundlesOrder]
+			.splice(state.bundlesOrder.indexOf(visibleBundleName) + 1, state.bundlesOrder.length);
+			console.log('moving bundles after this bundle', bundlesAfterVisibleBundle);
+			moveBundleDoms(visibleBundle[visibleBundle.length - 1], bundlesAfterVisibleBundle, true);
+		} else { // If all bundles are closed, position bundles in the spot of their latest email
+			bundleNames.forEach((bundleName) => {
+				const $latestEmail = state.bundles[bundleName][0];
+				moveBundleDoms($latestEmail, [bundleName]);
+			});
+		}
 	};
 
 	// Show only bundled emails, hide everything else.
@@ -366,9 +383,8 @@ Plan Notes:
 
 		// Move visible bundles below list of bundled emails,
 		//  rather than potentially in the middle of the bundled emails list
-		const bundlesAfterThisBundle = [...state.bundlesOrder]
-			.splice(state.bundlesOrder.indexOf(bundleName) + 1, state.bundlesOrder.length);
-		moveBundleDoms(bundle[bundle.length - 1], bundlesAfterThisBundle, true);
+		// TODO: Once this call is updated (see TODO comment on resetBundle method), we may be able to remove this call since runBundlizer already calls it
+		resetBundleDomsPosition();
 	};
 
 	// When we want to toggle a bundle off, we want to show emails that we hid in showBundledEmails
@@ -382,10 +398,10 @@ Plan Notes:
 	};
 
 	const hideEmails = ($emails) => {
-		console.log('hiding emails', $emails)
 		$emails.forEach(($email) => {
 			// Add a class to allow us to later select and unhide all programatically hidden emails
 			if (!$email.classList.contains(HIDDEN_EMAIL_CLASS)) {
+				console.log('hiding email for real', $emails);
 				$email.classList.add(HIDDEN_EMAIL_CLASS);
 				$email.style.display = 'none';
 			}
@@ -453,10 +469,18 @@ Plan Notes:
 				hideEmails(bundle);
 			}
 		});
+		resetBundleDomsPosition();
 
 		// This helps us hide emails that are no longer bundled, e.g. their label was removed
 		// This also ensures we show bundled emails that are part of multiple bundles
-		showBundledEmails(getVisibleBundleName());
+		// TODO: Right now, this shows hidden bundled emails if they're part of the visible bundle.
+		//  This is often not instant, which is bad.
+		//  We should update the logic above that calls `hideEmails`, and either update `hideEmails`, add a new method, or update the logic itself
+		//   to NEVER hide emails with the visible bundle's label/attribute. This'll remove the lag, and likely remove the need for this call below!
+		const visibleBundleName = getVisibleBundleName();
+		if (visibleBundleName) {
+			showBundledEmails(visibleBundleName);
+		}
 	};
 
     const init = () => {

@@ -28,9 +28,9 @@ Plan Notes:
 	'use strict';
 
 	// DOM class constants
-    const LOADING_CLASS = '#loading'; // Gmail loading class, used to detect when we can initialize our bundlizer
+	const LOADING_CLASS = '#loading'; // Gmail loading class, used to detect when we can initialize our bundlizer
 	const ALL_EMAIL_TABLE_CLASS = '.aeF'; // All emails, even hidden email lists from opening labels/etc
-	const VISIBLE_EMAIL_TABLE_CLASS = '.BltHke[role=main] .F'; // Contains email list of all visible emails, `.BltHke` can exist more than once per folder/label opened, `role=main` only gets visible one
+	const VISIBLE_EMAIL_TABLE_CLASS = '.BltHke[role=main] .F > tbody:not(:empty)'; // Contains email list of all visible emails, `.BltHke` can exist more than once per folder/label opened, `role=main` only gets visible one
 	const EMAIL_CLASS = '.zA'; // Single email row in list
 	const EMAIL_DEFAULT_DISPLAY = 'flex'; // CSS property used when making an email visible again after hiding it.
 	const EMAIL_LABEL_WRAPPER_CLASS = '.at'; // Class containing text and background color of label of single email row, one element per label
